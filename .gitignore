@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.env/
+
+# Datasets (DO NOT UPLOAD CHILD IMAGES)
+dataset/
+data/
+*.jpg
+*.jpeg
+*.png
+
+# Models
+models/
+*.h5
+*.pt
+*.pth
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
