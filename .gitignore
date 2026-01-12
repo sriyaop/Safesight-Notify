@@ -1,29 +1,22 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
-venv/
-.env/
+# Ignore all data contents
+data/**
 
-# Datasets (DO NOT UPLOAD CHILD IMAGES)
-dataset/
-data/
+# But keep folder structure placeholders
+!data/**/
+!data/**/.gitkeep
+
+# Ignore generated files
+*.npy
 *.jpg
 *.jpeg
 *.png
 
-# Models
-models/
-*.h5
-*.pt
-*.pth
-
 # Logs
-logs/
-*.log
+data/logs/**
 
-# OS
-.DS_Store
-Thumbs.db
+# Python
+__pycache__/
+*.pyc
+
+# Archives
+*.zip

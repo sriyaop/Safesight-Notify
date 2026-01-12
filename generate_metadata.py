@@ -36,19 +36,26 @@ for index, filename in enumerate(files, start=1):
     days_missing = 0
 
     rows.append({
-        "child_id": child_id,
-        "image_file": filename,
-        "child_name": child_name,
-        "father_name": father_name,
-        "mother_name": mother_name,
-        "age": age,
-        "gender": gender,
-        "missing_city": city,
-        "last_seen_area": last_seen_area,
-        "days_missing": days_missing,
-        "phone_number": phone_number,
-        "profile_type": "SYNTHETIC"
-    })
+    "child_id": child_id,
+    "image_file": filename,
+    "child_name": child_name,
+    "father_name": father_name,
+    "mother_name": mother_name,
+    "age": age,
+    "gender": gender,
+    "missing_city": city,
+    "last_seen_area": last_seen_area,
+    "days_missing": days_missing,
+    "phone_number": phone_number,
+
+    # NEW FIELDS
+    "parent_email": "synthetic_parent@example.com",
+    "police_email": "synthetic_police@example.com",
+
+    "profile_type": "SYNTHETIC",
+    "embedding_path": ""   # IMPORTANT: keep column consistent
+})
+
 
 df = pd.DataFrame(rows)
 df.to_csv(OUTPUT_CSV, index=False)

@@ -51,18 +51,27 @@ for idx, filename in enumerate(os.listdir(CUSTOM_IMG_DIR), start=start_index):
     new_rows.append({
         "child_id": f"C_{idx:05d}",
         "image_file": filename,
-        "child_name": "Test User",          # edit manually later
+
+        # YOU WILL EDIT THESE NAMES LATER IF NEEDED
+        "child_name": filename.split(".")[0].capitalize(),
         "father_name": "Test Father",
         "mother_name": "Test Mother",
+
         "age": 20,
         "gender": "F",
         "missing_city": "Hyderabad",
         "last_seen_area": "Gachibowli",
         "days_missing": 0,
         "phone_number": "+91-90000-00001",
+
+        # 🔥 THIS IS THE KEY PART
+        "parent_email": "teammate_email@gmail.com",   # CHANGE PER PERSON
+        "police_email": "YOUR_EMAIL@gmail.com",        # YOUR email (demo police)
+
         "profile_type": "TEST",
         "embedding_path": emb_path
-    })
+})
+
 
 df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 df.to_csv(META_CSV, index=False)
