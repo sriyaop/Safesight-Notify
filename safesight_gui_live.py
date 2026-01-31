@@ -15,16 +15,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # ================= EMAIL CONFIG =================
-EMAIL_SENDER = "your_email@gmail.com"
-EMAIL_PASSWORD = "YOUR_GMAIL_APP_PASSWORD"
-
+EMAIL_SENDER = "sriyabommakanti@gmail.com"
+EMAIL_PASSWORD = "kyka jddt vqiz nnux"
 # ===============================================
 
 ALERT_COOLDOWN_SECONDS = 30
-last_alert_time = None
+last_alert_times = {}  # child_id -> datetime
 
 # ================= SYSTEM CONFIG =================
-META_CSV = "data/cleaned/metadata.csv"
+META_CSV = "data/cleaned/metadata_private.csv"
 LOG_FILE = "data/logs/last_seen.csv"
 MATCH_THRESHOLD = 0.75
 CAMERA_INDEX = 0
@@ -33,7 +32,7 @@ CAMERA_INDEX = 0
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ================= MODELS =================
-mtcnn = MTCNN(keep_all=False, device=device)
+mtcnn = MTCNN(keep_all=True, device=device)  # 🔑 MULTI-FACE
 resnet = InceptionResnetV1(pretrained="vggface2").eval().to(device)
 
 # ================= LOAD DATABASE =================
@@ -51,8 +50,8 @@ for _, row in df.iterrows():
 def get_current_location():
     try:
         r = requests.get("https://ipinfo.io/json", timeout=5)
-        data = r.json()
-        return data.get("city", "Unknown"), data.get("region", "Unknown"), data.get("country", "Unknown")
+        d = r.json()
+        return d.get("city", "Unknown"), d.get("region", "Unknown"), d.get("country", "Unknown")
     except:
         return "Unknown", "Unknown", "Unknown"
 
@@ -67,7 +66,15 @@ def popup_alert(record, match_pct):
 def send_email_alert(record, match_pct):
     city, region, country = get_current_location()
 
-    subject = "🚨 SafeSightNotify Alert – Face Match Detected"
+    receivers = []
+    if pd.notna(record.get("parent_email")):
+        receivers.append(record["parent_email"])
+    if pd.notna(record.get("police_email")):
+        receivers.append(record["police_email"])
+
+    if not receivers:
+        return
+
     body = f"""
 FACE MATCH DETECTED
 
@@ -80,27 +87,12 @@ Region: {region}
 Country: {country}
 
 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-— SafeSightNotify System
 """
-
-    # 🔑 DYNAMIC RECEIVERS FROM METADATA
-    receivers = []
-
-    if pd.notna(record.get("parent_email")):
-        receivers.append(record["parent_email"])
-
-    if pd.notna(record.get("police_email")):
-        receivers.append(record["police_email"])
-
-    if not receivers:
-        print("⚠️ No valid email receivers found")
-        return
 
     msg = MIMEMultipart()
     msg["From"] = EMAIL_SENDER
     msg["To"] = ", ".join(receivers)
-    msg["Subject"] = subject
+    msg["Subject"] = "🚨 SafeSightNotify Alert"
     msg.attach(MIMEText(body, "plain"))
 
     try:
@@ -109,83 +101,106 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, receivers, msg.as_string())
         server.quit()
-        print(f"📧 Email sent to {receivers}")
+        print(f" Alert sent to {receivers}")
     except Exception as e:
-        print("❌ Email failed:", e)
+        print(" Email failed:", e)
 
 def log_last_seen(record, match_pct):
     os.makedirs("data/logs", exist_ok=True)
-    row = {
+    pd.DataFrame([{
         "child_id": record["child_id"],
         "child_name": record["child_name"],
         "match_percentage": round(match_pct, 2),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source": "CAMERA"
-    }
-    pd.DataFrame([row]).to_csv(LOG_FILE, mode="a", header=not os.path.exists(LOG_FILE), index=False)
+    }]).to_csv(LOG_FILE, mode="a", header=not os.path.exists(LOG_FILE), index=False)
 
 def match_embedding(query_emb):
-    results = []
+    matches = []
     for db_emb, record in zip(db_embeddings, db_records):
         score = 1 - cosine(query_emb, db_emb)
         if score >= MATCH_THRESHOLD:
-            results.append((score, record))
-    results.sort(key=lambda x: x[0], reverse=True)
-    return results
-
-def format_metadata(record, score):
-    return (
-        f"Name: {record['child_name']}\n"
-        f"Age: {record['age']}\n"
-        f"Gender: {record['gender']}\n"
-        f"City: {record['missing_city']}\n"
-        f"Match: {score*100:.2f}%\n"
-        "-----------------------------\n"
-    )
+            matches.append((score, record))
+    return sorted(matches, key=lambda x: x[0], reverse=True)
 
 # ================= LIVE CAMERA =================
 
 def start_camera():
-    global last_alert_time
     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
 
-    def update_frame():
-        global last_alert_time
+    COLORS = [
+        (0, 255, 0), (255, 0, 0), (0, 0, 255),
+        (255, 255, 0), (255, 0, 255), (0, 255, 255)
+    ]
 
+    def update_frame():
         ret, frame = cap.read()
         if not ret:
             return
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        face = mtcnn(rgb)
-        label = "NO MATCH"
 
-        if face is not None:
-            with torch.no_grad():
-                emb = resnet(face.unsqueeze(0).to(device)).cpu().numpy().flatten()
+        # 🔑 SINGLE PASS FACE DETECTION
+        boxes, probs = mtcnn.detect(rgb)
+        faces = mtcnn(rgb)
 
-            matches = match_embedding(emb)
-            output_box.delete("1.0", tk.END)
+        output_box.delete("1.0", tk.END)
 
-            if matches:
+        if faces is not None and boxes is not None:
+            for i, face in enumerate(faces):
+                color = COLORS[i % len(COLORS)]
+
+                with torch.no_grad():
+                    emb = resnet(face.unsqueeze(0).to(device)).cpu().numpy().flatten()
+
+                matches = match_embedding(emb)
+                if not matches:
+                    continue
+
+                #  TOP MATCH
                 top_score, top_record = matches[0]
+                child_id = top_record["child_id"]
 
-                for score, record in matches[:3]:
-                    log_last_seen(record, score * 100)
-                    output_box.insert(tk.END, format_metadata(record, score))
+                #  DRAW BOX
+                x1, y1, x2, y2 = map(int, boxes[i])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-                label = f"MATCH ({top_score*100:.1f}%)"
+                label = f"{top_record['child_name']} ({top_score*100:.1f}%)"
+                cv2.putText(
+                    frame,
+                    label,
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2
+                )
 
+                # 🧾 FULL METADATA DISPLAY (RESTORED)
+                output_box.insert(
+                    tk.END,
+                    f"Name: {top_record['child_name']}\n"
+                    f"Age: {top_record['age']}\n"
+                    f"Gender: {top_record['gender']}\n"
+                    f"City: {top_record['missing_city']}\n"
+                    f"Match: {top_score*100:.2f}%\n"
+                    "-----------------------------\n"
+                )
+
+                # ⏱️ PER-PERSON ALERT COOLDOWN
                 now = datetime.now()
-                if last_alert_time is None or (now - last_alert_time).seconds > ALERT_COOLDOWN_SECONDS:
+                last_time = last_alert_times.get(child_id)
+
+                if last_time is None or (now - last_time).seconds > ALERT_COOLDOWN_SECONDS:
                     popup_alert(top_record, top_score * 100)
                     send_email_alert(top_record, top_score * 100)
-                    last_alert_time = now
+                    log_last_seen(top_record, top_score * 100)
+                    last_alert_times[child_id] = now
 
-        cv2.putText(frame, label, (20, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-        img = ImageTk.PhotoImage(Image.fromarray(rgb).resize((300, 250)))
+        # 🔥 DISPLAY THE MODIFIED FRAME (IMPORTANT)
+        img = ImageTk.PhotoImage(
+            Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).resize((640, 480))
+        )
         cam_label.configure(image=img)
         cam_label.image = img
 
@@ -196,17 +211,232 @@ def start_camera():
 # ================= GUI =================
 
 root = tk.Tk()
-root.title("SafeSightNotify — Live Face Alert System")
-root.geometry("800x700")
+root.title("SafeSightNotify — Multi-Face Alert System")
+root.geometry("900x800")
 
 tk.Label(root, text="SafeSightNotify", font=("Arial", 22, "bold")).pack(pady=10)
 
 cam_label = tk.Label(root)
 cam_label.pack()
 
-tk.Button(root, text="Start Live Camera", width=25, command=start_camera).pack(pady=10)
+tk.Button(root, text="Start Live Camera", width=30, command=start_camera).pack(pady=10)
 
-output_box = tk.Text(root, height=18, width=90)
+output_box = tk.Text(root, height=12, width=100)
 output_box.pack(pady=10)
 
 root.mainloop()
+
+
+
+# import tkinter as tk
+# from tkinter import messagebox
+# from PIL import Image, ImageTk
+# import cv2
+# import numpy as np
+# import pandas as pd
+# import torch
+# from facenet_pytorch import MTCNN, InceptionResnetV1
+# from scipy.spatial.distance import cosine
+# from datetime import datetime
+# import os
+# import requests
+# import smtplib
+# from email.mime.text import MIMEText
+# from email.mime.multipart import MIMEMultipart
+
+# # ================= EMAIL CONFIG =================
+# EMAIL_SENDER = "sriyabommakanti@gmail.com"
+# EMAIL_PASSWORD = "kyka jddt vqiz nnux"
+
+# # ===============================================
+
+# ALERT_COOLDOWN_SECONDS = 30
+# last_alert_time = None
+
+# # ================= SYSTEM CONFIG =================
+# META_CSV = "data/cleaned/metadata_private.csv"
+# LOG_FILE = "data/logs/last_seen.csv"
+# MATCH_THRESHOLD = 0.75
+# CAMERA_INDEX = 0
+# # ===============================================
+
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# # ================= MODELS =================
+# mtcnn = MTCNN(keep_all=False, device=device)
+# resnet = InceptionResnetV1(pretrained="vggface2").eval().to(device)
+
+# # ================= LOAD DATABASE =================
+# df = pd.read_csv(META_CSV)
+# db_embeddings = []
+# db_records = []
+
+# for _, row in df.iterrows():
+#     if isinstance(row.get("embedding_path"), str):
+#         db_embeddings.append(np.load(row["embedding_path"]))
+#         db_records.append(row)
+
+# # ================= UTILITIES =================
+
+# def get_current_location():
+#     try:
+#         r = requests.get("https://ipinfo.io/json", timeout=5)
+#         data = r.json()
+#         return data.get("city", "Unknown"), data.get("region", "Unknown"), data.get("country", "Unknown")
+#     except:
+#         return "Unknown", "Unknown", "Unknown"
+
+# def popup_alert(record, match_pct):
+#     messagebox.showwarning(
+#         "🚨 MATCH FOUND",
+#         f"Name: {record['child_name']}\n"
+#         f"Match: {match_pct:.2f}%\n"
+#         f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+#     )
+
+# def send_email_alert(record, match_pct):
+#     city, region, country = get_current_location()
+
+#     subject = "🚨 SafeSightNotify Alert – Face Match Detected"
+#     body = f"""
+# FACE MATCH DETECTED
+
+# Name: {record['child_name']}
+# Match Confidence: {match_pct:.2f}%
+
+# Detected At:
+# City: {city}
+# Region: {region}
+# Country: {country}
+
+# Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+# — SafeSightNotify System
+# """
+
+#     # 🔑 DYNAMIC RECEIVERS FROM METADATA
+#     receivers = []
+
+#     if pd.notna(record.get("parent_email")):
+#         receivers.append(record["parent_email"])
+
+#     if pd.notna(record.get("police_email")):
+#         receivers.append(record["police_email"])
+
+#     if not receivers:
+#         print("⚠️ No valid email receivers found")
+#         return
+
+#     msg = MIMEMultipart()
+#     msg["From"] = EMAIL_SENDER
+#     msg["To"] = ", ".join(receivers)
+#     msg["Subject"] = subject
+#     msg.attach(MIMEText(body, "plain"))
+
+#     try:
+#         server = smtplib.SMTP("smtp.gmail.com", 587)
+#         server.starttls()
+#         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+#         server.sendmail(EMAIL_SENDER, receivers, msg.as_string())
+#         server.quit()
+#         print(f"📧 Email sent to {receivers}")
+#     except Exception as e:
+#         print("❌ Email failed:", e)
+
+# def log_last_seen(record, match_pct):
+#     os.makedirs("data/logs", exist_ok=True)
+#     row = {
+#         "child_id": record["child_id"],
+#         "child_name": record["child_name"],
+#         "match_percentage": round(match_pct, 2),
+#         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+#         "source": "CAMERA"
+#     }
+#     pd.DataFrame([row]).to_csv(LOG_FILE, mode="a", header=not os.path.exists(LOG_FILE), index=False)
+
+# def match_embedding(query_emb):
+#     results = []
+#     for db_emb, record in zip(db_embeddings, db_records):
+#         score = 1 - cosine(query_emb, db_emb)
+#         if score >= MATCH_THRESHOLD:
+#             results.append((score, record))
+#     results.sort(key=lambda x: x[0], reverse=True)
+#     return results
+
+# def format_metadata(record, score):
+#     return (
+#         f"Name: {record['child_name']}\n"
+#         f"Age: {record['age']}\n"
+#         f"Gender: {record['gender']}\n"
+#         f"City: {record['missing_city']}\n"
+#         f"Match: {score*100:.2f}%\n"
+#         "-----------------------------\n"
+#     )
+
+# # ================= LIVE CAMERA =================
+
+# def start_camera():
+#     global last_alert_time
+#     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
+
+#     def update_frame():
+#         global last_alert_time
+
+#         ret, frame = cap.read()
+#         if not ret:
+#             return
+
+#         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#         face = mtcnn(rgb)
+#         label = "NO MATCH"
+
+#         if face is not None:
+#             with torch.no_grad():
+#                 emb = resnet(face.unsqueeze(0).to(device)).cpu().numpy().flatten()
+
+#             matches = match_embedding(emb)
+#             output_box.delete("1.0", tk.END)
+
+#             if matches:
+#                 top_score, top_record = matches[0]
+
+#                 for score, record in matches[:3]:
+#                     log_last_seen(record, score * 100)
+#                     output_box.insert(tk.END, format_metadata(record, score))
+
+#                 label = f"MATCH ({top_score*100:.1f}%)"
+
+#                 now = datetime.now()
+#                 if last_alert_time is None or (now - last_alert_time).seconds > ALERT_COOLDOWN_SECONDS:
+#                     popup_alert(top_record, top_score * 100)
+#                     send_email_alert(top_record, top_score * 100)
+#                     last_alert_time = now
+
+#         cv2.putText(frame, label, (20, 40),
+#                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+#         img = ImageTk.PhotoImage(Image.fromarray(rgb).resize((300, 250)))
+#         cam_label.configure(image=img)
+#         cam_label.image = img
+
+#         root.after(30, update_frame)
+
+#     update_frame()
+
+# # ================= GUI =================
+
+# root = tk.Tk()
+# root.title("SafeSightNotify — Live Face Alert System")
+# root.geometry("800x700")
+
+# tk.Label(root, text="SafeSightNotify", font=("Arial", 22, "bold")).pack(pady=10)
+
+# cam_label = tk.Label(root)
+# cam_label.pack()
+
+# tk.Button(root, text="Start Live Camera", width=25, command=start_camera).pack(pady=10)
+
+# output_box = tk.Text(root, height=18, width=90)
+# output_box.pack(pady=10)
+
+# root.mainloop()

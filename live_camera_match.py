@@ -6,7 +6,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 from scipy.spatial.distance import cosine
 
 # ---------------- CONFIG ----------------
-META_CSV = "data/cleaned/metadata.csv"
+META_CSV = "data/cleaned/metadata_private.csv"
 MATCH_THRESHOLD = 0.75   # 75% similarity threshold
 CAMERA_INDEX = 0         # change to 1 if external webcam
 # ----------------------------------------
