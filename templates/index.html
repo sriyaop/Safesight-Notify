@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>SafeSightNotify Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<header>
+SafeSightNotify — Surveillance Dashboard
+</header>
+
+<div class="main-content">
+
+<!-- METRIC CARDS -->
+<div class="cards">
+
+<div class="card">
+<h4>Missing Children</h4>
+<div class="card-value" id="missingCount">0</div>
+</div>
+
+<div class="card">
+<h4>Active Alerts</h4>
+<div class="card-value" id="alertCount">0</div>
+</div>
+
+<div class="card">
+<h4>Active Cameras</h4>
+<div class="card-value">3</div>
+</div>
+
+<div class="card">
+<h4>Detections Today</h4>
+<div class="card-value" id="faceCount">0</div>
+</div>
+
+</div>
+
+
+<!-- MULTI CAMERA GRID -->
+<div class="camera-grid">
+
+
+<!-- PEOPLELINK CAMERA -->
+<div class="camera-panel">
+
+<h3>PeopleLink Camera</h3>
+
+<div class="video-wrapper">
+<img src="/video_feed/peoplelink" class="camera-feed">
+</div>
+
+<div class="analysis-card">
+
+<h4>Face Match Analysis</h4>
+
+<div id="analysis_peoplelink" class="analysis-container"></div>
+
+</div>
+
+</div>
+
+
+
+<!-- LAPTOP CAMERA -->
+<div class="camera-panel">
+
+<h3>Laptop Camera</h3>
+
+<div class="video-wrapper">
+<img src="/video_feed/laptop" class="camera-feed">
+</div>
+
+<div class="analysis-card">
+<h4>Face Match Analysis</h4>
+<div id="analysis_laptop" class="analysis-container"></div>
+</div>
+
+</div>
+
+
+
+<!-- ZEBRONICS CAMERA -->
+<div class="camera-panel">
+
+<h3>Zebronics Webcam</h3>
+
+<div class="video-wrapper">
+<img src="/video_feed/zebronics" class="camera-feed">
+</div>
+
+<div class="analysis-card">
+<h4>Face Match Analysis</h4>
+<div id="analysis_zebronics" class="analysis-container"></div>
+</div>
+
+</div>
+
+
+<!-- REMOTE CAMERA -->
+<div class="camera-panel">
+
+<h3>Remote Camera</h3>
+
+<div class="video-wrapper inactive-camera">
+
+<p>Waiting for remote feed...</p>
+
+</div>
+
+<div class="analysis-card">
+
+<h4>Face Match Analysis</h4>
+
+<div class="analysis-container">
+
+<p>No camera connected</p>
+
+</div>
+
+</div>
+
+</div>
+
+
+</div>
+
+
+
+<!-- DETECTION LOG -->
+<div class="log-section">
+
+<h3>Live Detection Log</h3>
+
+<div class="log-table-wrapper">
+
+<table>
+
+<thead>
+<tr>
+<th>Time</th>
+<th>Track ID</th>
+<th>Name</th>
+<th>Confidence</th>
+</tr>
+</thead>
+
+<tbody id="logTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div id="alertPopup" class="alert-popup"></div>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+</body>
+</html>
