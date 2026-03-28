@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 5.5%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 5.5%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 217.2 91.2% 59.8%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 240 10% 4.5%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --shadow-card: 0 0 0 1px rgba(255,255,255,0.06), 0 2px 4px rgba(0,0,0,0.3);
+    --shadow-elevated: 0 0 0 1px rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .card-surface {
+    @apply bg-card/50 backdrop-blur-md rounded-lg;
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-elevated {
+    @apply bg-card/70 backdrop-blur-md rounded-lg;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .text-label {
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  }
+
+  .text-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(217.2 91.2% 59.8% / 0.15);
+  }
+
+  .glow-destructive {
+    box-shadow: 0 0 20px hsl(0 72% 51% / 0.15);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px hsl(142 76% 36% / 0.15);
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(240 3.7% 15.9%) transparent;
+  }
+}
